@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const Admin = require("../models/admin");
+const LcdRepair = require("../models/LcdRepair");
 const { protect } = require("../middlewares/auth");
 
 const adminAuth = express.Router();
@@ -51,6 +52,207 @@ adminAuth.post("/admin/login", async (req, res) => {
     res.status(500).send("Server error");
   }
 });
+
+// LCD Repair Routes - Protected
+// Create new repair record
+adminAuth.post("/lcd-repairs", protect, async (req, res) => {
+  try {
+    const {
+      // jobNo,
+      modelNo,
+      serialNo,
+      brand,
+      customerName,
+      phoneNo,
+      repairingPrice,
+      advance,
+      // leftMoney,
+      issueDescription,
+      receivedDate,
+      status,
+    } = req.body;
+
+    // Validation
+    if (!customerName) {
+      return res.status(400).json({ message: "Customer Name are required" });
+    }
+    if (phoneNo && !/^[0-9]{10,15}$/.test(phoneNo)) {
+      return res.status(400).json({ message: "Invalid phone number" });
+    }
+    if (
+      status &&
+      !["Pending", "In Progress", "Completed", "Delivered"].includes(status)
+    ) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+    if (repairingPrice === undefined) {
+      return res.status(400).json({ message: "Repairing price required" });
+    }
+
+    const repairingPriceNum = Number(repairingPrice);
+    if (Number.isNaN(repairingPriceNum) || repairingPriceNum < 0) {
+      return res.status(400).json({ message: "Invalid repairing price" });
+    }
+
+    const advanceNum = advance === undefined ? 0 : Number(advance);
+
+    if (advance !== undefined && (isNaN(advanceNum) || advanceNum < 0)) {
+      return res
+        .status(400)
+        .json({ message: "Advance must be a positive number" });
+    }
+    const leftMoneyNum = repairingPriceNum - (advanceNum || 0);
+
+    // Create repair
+    const repair = new LcdRepair({
+      modelNo,
+      serialNo,
+      brand,
+      customerName,
+      phoneNo,
+      repairingPrice: repairingPriceNum,
+      advance: advanceNum,
+      leftMoney: leftMoneyNum,
+      issueDescription,
+      receivedDate: receivedDate ? new Date(receivedDate) : new Date(),
+      status: status || "Pending",
+    });
+
+    await repair.save();
+
+    res.status(201).json({
+      message: "Repair record created successfully",
+      repair,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get all repairs or filter by status
+adminAuth.get("/lcd-repairs", protect, async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = status ? { status } : {};
+    const repairs = await LcdRepair.find(filter).sort({ receivedDate: -1 });
+    res.json({
+      message: "Repairs fetched successfully",
+      count: repairs.length,
+      repairs,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Update repair record (mainly status)
+adminAuth.patch("/lcd-repairs/:id", protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Validate status if provided
+    if (
+      updateData.status &&
+      !["Pending", "In Progress", "Completed", "Delivered"].includes(
+        updateData.status,
+      )
+    ) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    // Number conversion & validation for numeric updates
+    if (updateData.repairingPrice !== undefined) {
+      const repairingPriceNum = Number(updateData.repairingPrice);
+      if (isNaN(repairingPriceNum) || repairingPriceNum < 0) {
+        return res
+          .status(400)
+          .json({ message: "Repairing price must be a positive number" });
+      }
+      updateData.repairingPrice = repairingPriceNum;
+    }
+    if (updateData.advance !== undefined) {
+      const advanceNum = Number(updateData.advance);
+      if (isNaN(advanceNum) || advanceNum < 0) {
+        return res
+          .status(400)
+          .json({ message: "Advance must be a positive number" });
+      }
+      updateData.advance = advanceNum;
+    }
+    const existing = await LcdRepair.findById(id);
+
+    if (!existing) {
+      return res.status(404).json({ message: "Repair record not found" });
+    }
+
+    if (
+      updateData.repairingPrice !== undefined ||
+      updateData.advance !== undefined
+    ) {
+      const repairingPrice =
+        updateData.repairingPrice ?? existing.repairingPrice;
+
+      const advance = updateData.advance ?? existing.advance;
+
+      updateData.leftMoney = repairingPrice - advance;
+    }
+
+    const repair = await LcdRepair.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true },
+    );
+
+    if (!repair) {
+      return res.status(404).json({ message: "Repair record not found" });
+    }
+
+    res.json({
+      message: "Repair record updated successfully",
+      repair,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+//Search repairs
+adminAuth.get("/lcd-repairs/search", protect, async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query) {
+      return res.status(400).json({ message: "Search query required" });
+    }
+
+    const isNumberOnly = /^\d+$/.test(query);
+    const isJobLike = query.startsWith("JOB-");
+
+    let filter;
+
+    if (isNumberOnly) {
+      filter = { phoneNo: query };
+    } else if (isJobLike) {
+      filter = { jobNo: { $regex: query, $options: "i" } };
+    } else {
+      filter = {
+        $or: [
+          { jobNo: { $regex: query, $options: "i" } },
+          { customerName: { $regex: query, $options: "i" } },
+        ],
+      };
+    }
+    const repairs = await LcdRepair.find(filter);
+
+    res.json(repairs);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Protected demo route
 adminAuth.get("/admin/profile", protect, (req, res) => {
   res.json({
