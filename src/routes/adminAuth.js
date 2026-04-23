@@ -57,7 +57,6 @@ adminAuth.post("/admin/login", async (req, res) => {
 // Create new repair record
 adminAuth.post("/lcd-repairs", protect, async (req, res) => {
   try {
-    
     if (!req.body) {
       return res.status(400).json({ message: "Request body is missing" });
     }
@@ -138,6 +137,7 @@ adminAuth.get("/lcd-repairs", protect, async (req, res) => {
   try {
     const { status } = req.query;
     const filter = status ? { status } : {};
+    // console.log(filter)
     const repairs = await LcdRepair.find(filter).sort({ receivedDate: -1 });
     res.json({
       message: "Repairs fetched successfully",
@@ -206,7 +206,7 @@ adminAuth.patch("/lcd-repairs/:id", protect, async (req, res) => {
     const repair = await LcdRepair.findByIdAndUpdate(
       id,
       { $set: updateData },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
 
     if (!repair) {
