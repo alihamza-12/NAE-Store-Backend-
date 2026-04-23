@@ -57,6 +57,10 @@ adminAuth.post("/admin/login", async (req, res) => {
 // Create new repair record
 adminAuth.post("/lcd-repairs", protect, async (req, res) => {
   try {
+    
+    if (!req.body) {
+      return res.status(400).json({ message: "Request body is missing" });
+    }
     const {
       // jobNo,
       modelNo,
@@ -74,7 +78,7 @@ adminAuth.post("/lcd-repairs", protect, async (req, res) => {
 
     // Validation
     if (!customerName) {
-      return res.status(400).json({ message: "Customer Name are required" });
+      return res.status(400).json({ message: "Customer name is required" });
     }
     if (phoneNo && !/^[0-9]{10,15}$/.test(phoneNo)) {
       return res.status(400).json({ message: "Invalid phone number" });
@@ -101,7 +105,7 @@ adminAuth.post("/lcd-repairs", protect, async (req, res) => {
         .status(400)
         .json({ message: "Advance must be a positive number" });
     }
-    const leftMoneyNum = repairingPriceNum - (advanceNum || 0);
+    // leftMoney is virtual - auto-computed
 
     // Create repair
     const repair = new LcdRepair({
@@ -112,7 +116,6 @@ adminAuth.post("/lcd-repairs", protect, async (req, res) => {
       phoneNo,
       repairingPrice: repairingPriceNum,
       advance: advanceNum,
-      leftMoney: leftMoneyNum,
       issueDescription,
       receivedDate: receivedDate ? new Date(receivedDate) : new Date(),
       status: status || "Pending",
@@ -125,8 +128,8 @@ adminAuth.post("/lcd-repairs", protect, async (req, res) => {
       repair,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+    console.error("LCD Repair creation failed:", error.message, error.stack);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 });
 
@@ -197,7 +200,7 @@ adminAuth.patch("/lcd-repairs/:id", protect, async (req, res) => {
 
       const advance = updateData.advance ?? existing.advance;
 
-      updateData.leftMoney = repairingPrice - advance;
+      // leftMoney is virtual - no need to set
     }
 
     const repair = await LcdRepair.findByIdAndUpdate(
