@@ -5,9 +5,7 @@ const mongoose = require("mongoose");
 const connectDB = async () => {
   // compass string for connecting to database
   try {
-    await mongoose.connect(
-      "mongodb+srv://alihamzaarshad12_db_user:NHsHIfehaHSLVjaI@cluster0.8unshu1.mongodb.net/NAEpractice",
-    );
+    await mongoose.connect(process.env.MONGO_DB_URL);
     console.log("DataBase is Connected");
   } catch (err) {
     console.error("Error connecting to DataBase", err);
