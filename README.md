@@ -82,7 +82,7 @@ new-armeco-electronics/
 
 ```bash
 # Clone & Install
-git clone <your-repo-url>
+git clone https://github.com/alihamza-12/NAE-Store-Backend-/tree/main
 cd new-armeco-electronics
 npm install
 
