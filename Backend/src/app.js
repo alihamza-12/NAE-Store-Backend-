@@ -2,6 +2,8 @@
 const express = require("express");
 const { connectDB } = require("./config/database");
 const dotenv = require("dotenv");
+const cors = require("cors");
+
 
 const app = express();
 
@@ -11,6 +13,12 @@ const cookieParser = require("cookie-parser");
 app.use(cookieParser());
 
 dotenv.config();
+// ✅ ADD THIS (VERY IMPORTANT)
+app.use(cors({
+  origin: "http://localhost:5173", // React frontend
+  credentials: true               // allow cookies (JWT auth)
+}));
+
 
 const adminAuth = require("./routes/adminAuth");
 
