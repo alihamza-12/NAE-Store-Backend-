@@ -16,14 +16,14 @@ adminAuth.post("/admin/login", async (req, res) => {
     const admin = await Admin.findOne({ email });
 
     if (!admin) {
-      return res.status(400).json({ message: "Invalid email" });
+      return res.status(400).json({ message: "Invalid admin credentials." });
     }
 
     // 2. compare password
     const isMatch = await bcrypt.compare(password, admin.password);
 
     if (!isMatch) {
-      return res.status(400).json({ message: "Invalid password" });
+      return res.status(400).json({ message: "Invalid admin credentials." });
     }
 
     // 3. success - generate JWT
